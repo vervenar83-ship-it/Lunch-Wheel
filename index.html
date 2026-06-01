@@ -2,12 +2,21 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>실시간 점심 룰렛</title>
-    <!-- Firebase SDK 및 Firestore 설정 -->
+    <style>
+        body { font-family: sans-serif; text-align: center; padding: 20px; }
+        #canvas { margin-top: 20px; border: 2px solid #333; border-radius: 50%; }
+    </style>
+</head>
+<body>
+    <h1>실시간 점심 룰렛</h1>
+    <input type="text" id="menuInput" placeholder="메뉴 입력">
+    <button onclick="addMenu()">추가</button>
+    <br><canvas id="canvas" width="300" height="300"></canvas>
+
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getFirestore, collection, onSnapshot, addDoc, updateDoc, doc, increment } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getFirestore, collection, onSnapshot, addDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyBCZ1mXpEhfw2Wovpck6BHvIp6aMmq2Kg8",
@@ -20,16 +29,37 @@
 
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        let menus = [];
 
-        // UI 로직은 이전과 동일하게 유지하되, 데이터 연동 부분만 Firebase로 변경합니다.
-        // 이 코드를 붙여넣은 후, 룰렛 기능을 완성하기 위해 추가 코드가 필요합니다.
+        window.addMenu = async () => {
+            const input = document.getElementById('menuInput');
+            if (input.value) {
+                await addDoc(collection(db, "menus"), { name: input.value });
+                input.value = '';
+            }
+        };
+
+        onSnapshot(collection(db, "menus"), (snapshot) => {
+            menus = snapshot.docs.map(doc => doc.data().name);
+            draw();
+        });
+
+        function draw() {
+            ctx.clearRect(0, 0, 300, 300);
+            menus.forEach((m, i) => {
+                let angle = (2 * Math.PI / menus.length) * i;
+                ctx.beginPath();
+                ctx.moveTo(150, 150);
+                ctx.arc(150, 150, 150, angle, angle + (2 * Math.PI / menus.length));
+                ctx.fillStyle = i % 2 ? '#ff9999' : '#99ff99';
+                ctx.fill();
+                ctx.stroke();
+                ctx.fillStyle = '#000';
+                ctx.fillText(m, 150 + Math.cos(angle + 0.2) * 80, 150 + Math.sin(angle + 0.2) * 80);
+            });
+        }
     </script>
-    <style>
-        /* 이전과 동일한 스타일 유지 */
-    </style>
-</head>
-<body>
-    <h1>실시간 점심 메뉴 룰렛</h1>
-    <!-- 이전과 동일한 HTML 구조 유지 -->
 </body>
 </html>
