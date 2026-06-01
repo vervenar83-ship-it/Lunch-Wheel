@@ -50,7 +50,7 @@
         const ctx = canvas.getContext('2d');
         const colors = ['#FF5733', '#33FF57', '#3357FF', '#F333FF', '#FF33A8', '#33FFF3', '#F3FF33', '#FF8C33', '#8C33FF', '#33FF8C'];
 
-        // 1. 간편 선택 버튼 생성
+        // 사전 데이터 불러와 버튼 생성
         async function loadShortcuts() {
             const dictSnapshot = await getDoc(doc(db, "synonyms", "dictionary"));
             const dict = dictSnapshot.exists() ? dictSnapshot.data() : {};
@@ -65,7 +65,7 @@
         }
         loadShortcuts();
 
-        // 2. 입력 및 통합 로직
+        // 입력 시 자동 통합 및 저장 로직
         window.addMenu = async (presetName = null) => {
             const input = document.getElementById('menuInput');
             let inputName = presetName || input.value.trim();
@@ -75,8 +75,9 @@
             const dict = dictSnapshot.exists() ? dictSnapshot.data() : {};
             
             let finalName = inputName;
+            // 배열 내의 동의어 중 하나라도 포함되어 있으면 대표명칭(key)으로 변경
             for (const [representative, synonyms] of Object.entries(dict)) {
-                if (synonyms.some(s => inputName.includes(s))) {
+                if (Array.isArray(synonyms) && synonyms.some(s => inputName.includes(s))) {
                     finalName = representative;
                     break;
                 }
@@ -88,7 +89,7 @@
         window.createNewRoom = () => { window.location.href = `?room=${Math.random().toString(36).substr(2, 9)}`; };
         window.copyLink = () => { navigator.clipboard.writeText(window.location.href); alert("링크가 복사되었습니다!"); };
 
-        // 3. 룰렛 그리기
+        // 데이터 변경 시 룰렛 새로 그리기
         onSnapshot(dbRef, (snapshot) => {
             const counts = {};
             snapshot.forEach(doc => { const name = doc.data().name; counts[name] = (counts[name] || 0) + 1; });
