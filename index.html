@@ -8,7 +8,7 @@
         .main { flex: 3; }
         .sidebar { flex: 1; border-left: 1px solid #ccc; padding-left: 20px; }
         #canvas { margin-top: 20px; border: 2px solid #333; border-radius: 50%; }
-        .shortcut-btn { display: block; margin: 5px; width: 100%; cursor: pointer; }
+        .shortcut-btn { display: block; margin: 5px; width: 100%; cursor: pointer; padding: 8px; }
     </style>
 </head>
 <body>
@@ -23,7 +23,7 @@
         <br><canvas id="canvas" width="300" height="300"></canvas>
     </div>
 
-    <div class="sidebar" id="sidebar">
+    <div class="sidebar">
         <h3>간편 선택</h3>
         <div id="shortcutList"></div>
     </div>
@@ -32,14 +32,25 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import { getFirestore, collection, onSnapshot, addDoc, getDoc, doc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-        const firebaseConfig = { /* 아까 그 설정 그대로 */ };
+        const firebaseConfig = {
+            apiKey: "AIzaSyBCZ1mXpEhfw2Wovpck6BHvIp6aMmq2Kg8",
+            authDomain: "lunch-wheel-3e5ae.firebaseapp.com",
+            projectId: "lunch-wheel-3e5ae",
+            storageBucket: "lunch-wheel-3e5ae.firebasestorage.app",
+            messagingSenderId: "2842226690",
+            appId: "1:2842226690:web:849445afa6f938d1fdf71b"
+        };
+
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
         
         const roomId = new URLSearchParams(window.location.search).get('room') || 'default';
         const dbRef = collection(db, "rooms", roomId, "menus");
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const colors = ['#FF5733', '#33FF57', '#3357FF', '#F333FF', '#FF33A8', '#33FFF3', '#F3FF33', '#FF8C33', '#8C33FF', '#33FF8C'];
 
-        // 1. 간편 선택 버튼 로드
+        // 1. 간편 선택 버튼 생성
         async function loadShortcuts() {
             const dictSnapshot = await getDoc(doc(db, "synonyms", "dictionary"));
             const dict = dictSnapshot.exists() ? dictSnapshot.data() : {};
@@ -48,32 +59,59 @@
                 const btn = document.createElement('button');
                 btn.className = 'shortcut-btn';
                 btn.innerText = key;
-                btn.onclick = () => addMenu(key); // 클릭 시 바로 추가
+                btn.onclick = () => addMenu(key);
                 list.appendChild(btn);
             });
         }
         loadShortcuts();
 
-        // 2. 자동 치환 로직 포함된 추가 함수
+        // 2. 입력 및 통합 로직
         window.addMenu = async (presetName = null) => {
             const input = document.getElementById('menuInput');
-            let name = presetName || input.value.trim();
-            if (!name) return;
+            let inputName = presetName || input.value.trim();
+            if (!inputName) return;
 
             const dictSnapshot = await getDoc(doc(db, "synonyms", "dictionary"));
-            const dict = dictSnapshot.data() || {};
+            const dict = dictSnapshot.exists() ? dictSnapshot.data() : {};
             
-            for (const [key, synonyms] of Object.entries(dict)) {
-                if (key === name || (synonyms && synonyms.includes(name))) {
-                    name = key;
+            let finalName = inputName;
+            for (const [representative, synonyms] of Object.entries(dict)) {
+                if (synonyms.some(s => inputName.includes(s))) {
+                    finalName = representative;
                     break;
                 }
             }
-            await addDoc(dbRef, { name: name });
+            await addDoc(dbRef, { name: finalName });
             input.value = '';
         };
 
-        // ... (이후 룰렛 draw 로직은 동일) ...
+        window.createNewRoom = () => { window.location.href = `?room=${Math.random().toString(36).substr(2, 9)}`; };
+        window.copyLink = () => { navigator.clipboard.writeText(window.location.href); alert("링크가 복사되었습니다!"); };
+
+        // 3. 룰렛 그리기
+        onSnapshot(dbRef, (snapshot) => {
+            const counts = {};
+            snapshot.forEach(doc => { const name = doc.data().name; counts[name] = (counts[name] || 0) + 1; });
+            const menuData = Object.keys(counts).map(name => ({ name, count: counts[name] }));
+            draw(menuData);
+        });
+
+        function draw(menuData) {
+            const total = menuData.reduce((sum, item) => sum + item.count, 0);
+            ctx.clearRect(0, 0, 300, 300);
+            let startAngle = 0;
+            menuData.forEach((item, i) => {
+                const sliceAngle = (item.count / total) * 2 * Math.PI;
+                ctx.beginPath();
+                ctx.moveTo(150, 150);
+                ctx.arc(150, 150, 140, startAngle, startAngle + sliceAngle);
+                ctx.fillStyle = colors[i % colors.length];
+                ctx.fill(); ctx.stroke();
+                ctx.fillStyle = '#000';
+                ctx.fillText(item.name, 150 + Math.cos(startAngle + sliceAngle/2) * 80, 150 + Math.sin(startAngle + sliceAngle/2) * 80);
+                startAngle += sliceAngle;
+            });
+        }
     </script>
 </body>
 </html>
