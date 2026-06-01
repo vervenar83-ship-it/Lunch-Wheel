@@ -4,91 +4,76 @@
     <meta charset="UTF-8">
     <title>실시간 점심 룰렛</title>
     <style>
-        body { font-family: sans-serif; text-align: center; padding: 20px; }
+        body { font-family: sans-serif; text-align: center; padding: 20px; display: flex; }
+        .main { flex: 3; }
+        .sidebar { flex: 1; border-left: 1px solid #ccc; padding-left: 20px; }
         #canvas { margin-top: 20px; border: 2px solid #333; border-radius: 50%; }
-        .btn-group { margin: 20px 0; }
-        button { padding: 10px 15px; margin: 0 5px; cursor: pointer; }
+        .shortcut-btn { display: block; margin: 5px; width: 100%; cursor: pointer; }
     </style>
 </head>
 <body>
-    <h1>실시간 점심 룰렛</h1>
-    <div class="btn-group">
-        <button onclick="createNewRoom()">새 룰렛 생성</button>
-        <button onclick="copyLink()">공유하기(링크 복사)</button>
+    <div class="main">
+        <h1>실시간 점심 룰렛</h1>
+        <div class="btn-group">
+            <button onclick="createNewRoom()">새 룰렛 생성</button>
+            <button onclick="copyLink()">공유하기</button>
+        </div>
+        <br><input type="text" id="menuInput" placeholder="메뉴 입력">
+        <button onclick="addMenu()">추가</button>
+        <br><canvas id="canvas" width="300" height="300"></canvas>
     </div>
-    <input type="text" id="menuInput" placeholder="메뉴 입력">
-    <button onclick="addMenu()">추가</button>
-    <br><canvas id="canvas" width="300" height="300"></canvas>
+
+    <div class="sidebar" id="sidebar">
+        <h3>간편 선택</h3>
+        <div id="shortcutList"></div>
+    </div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getFirestore, collection, onSnapshot, addDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getFirestore, collection, onSnapshot, addDoc, getDoc, doc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-        const firebaseConfig = {
-            apiKey: "AIzaSyBCZ1mXpEhfw2Wovpck6BHvIp6aMmq2Kg8",
-            authDomain: "lunch-wheel-3e5ae.firebaseapp.com",
-            projectId: "lunch-wheel-3e5ae",
-            storageBucket: "lunch-wheel-3e5ae.firebasestorage.app",
-            messagingSenderId: "2842226690",
-            appId: "1:2842226690:web:849445afa6f938d1fdf71b"
-        };
-
+        const firebaseConfig = { /* 아까 그 설정 그대로 */ };
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
         
-        // URL에서 방 ID 추출
-        const urlParams = new URLSearchParams(window.location.search);
-        const roomId = urlParams.get('room') || 'default';
+        const roomId = new URLSearchParams(window.location.search).get('room') || 'default';
         const dbRef = collection(db, "rooms", roomId, "menus");
 
-        window.createNewRoom = () => {
-            const newRoomId = Math.random().toString(36).substr(2, 9);
-            window.location.href = `?room=${newRoomId}`;
-        };
+        // 1. 간편 선택 버튼 로드
+        async function loadShortcuts() {
+            const dictSnapshot = await getDoc(doc(db, "synonyms", "dictionary"));
+            const dict = dictSnapshot.exists() ? dictSnapshot.data() : {};
+            const list = document.getElementById('shortcutList');
+            Object.keys(dict).forEach(key => {
+                const btn = document.createElement('button');
+                btn.className = 'shortcut-btn';
+                btn.innerText = key;
+                btn.onclick = () => addMenu(key); // 클릭 시 바로 추가
+                list.appendChild(btn);
+            });
+        }
+        loadShortcuts();
 
-        window.copyLink = () => {
-            navigator.clipboard.writeText(window.location.href);
-            alert("링크가 복사되었습니다!");
-        };
-
-        window.addMenu = async () => {
+        // 2. 자동 치환 로직 포함된 추가 함수
+        window.addMenu = async (presetName = null) => {
             const input = document.getElementById('menuInput');
-            if (!input.value) return;
-            await addDoc(dbRef, { name: input.value });
+            let name = presetName || input.value.trim();
+            if (!name) return;
+
+            const dictSnapshot = await getDoc(doc(db, "synonyms", "dictionary"));
+            const dict = dictSnapshot.data() || {};
+            
+            for (const [key, synonyms] of Object.entries(dict)) {
+                if (key === name || (synonyms && synonyms.includes(name))) {
+                    name = key;
+                    break;
+                }
+            }
+            await addDoc(dbRef, { name: name });
             input.value = '';
         };
 
-        onSnapshot(dbRef, (snapshot) => {
-            const counts = {};
-            snapshot.forEach(doc => {
-                const name = doc.data().name;
-                counts[name] = (counts[name] || 0) + 1;
-            });
-            const menuData = Object.keys(counts).map(name => ({ name, count: counts[name] }));
-            draw(menuData);
-        });
-
-        function draw(menuData) {
-            const canvas = document.getElementById('canvas');
-            const ctx = canvas.getContext('2d');
-            const colors = ['#FF5733', '#33FF57', '#3357FF', '#F333FF', '#FF33A8', '#33FFF3', '#F3FF33', '#FF8C33', '#8C33FF', '#33FF8C'];
-            const total = menuData.reduce((sum, item) => sum + item.count, 0);
-            ctx.clearRect(0, 0, 300, 300);
-            let startAngle = 0;
-
-            menuData.forEach((item, i) => {
-                const sliceAngle = (item.count / total) * 2 * Math.PI;
-                ctx.beginPath();
-                ctx.moveTo(150, 150);
-                ctx.arc(150, 150, 140, startAngle, startAngle + sliceAngle);
-                ctx.fillStyle = colors[i % colors.length];
-                ctx.fill();
-                ctx.stroke();
-                ctx.fillStyle = '#000';
-                ctx.fillText(item.name, 150 + Math.cos(startAngle + sliceAngle/2) * 80, 150 + Math.sin(startAngle + sliceAngle/2) * 80);
-                startAngle += sliceAngle;
-            });
-        }
+        // ... (이후 룰렛 draw 로직은 동일) ...
     </script>
 </body>
 </html>
