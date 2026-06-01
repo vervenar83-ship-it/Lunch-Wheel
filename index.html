@@ -6,6 +6,8 @@
     <style>
         body { font-family: sans-serif; text-align: center; padding: 20px; }
         #canvas { margin-top: 20px; border: 2px solid #333; border-radius: 50%; }
+        /* 메뉴 목록 스타일 */
+        .menu-item { display: inline-block; margin: 5px; padding: 5px 10px; background: #eee; border-radius: 15px; }
     </style>
 </head>
 <body>
@@ -13,11 +15,13 @@
     <input type="text" id="menuInput" placeholder="메뉴 입력">
     <button onclick="addMenu()">추가</button>
     <br><canvas id="canvas" width="300" height="300"></canvas>
+    <div id="menuList"></div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import { getFirestore, collection, onSnapshot, addDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
+        // Firebase 설정 (본인의 키 사용)
         const firebaseConfig = {
             apiKey: "AIzaSyBCZ1mXpEhfw2Wovpck6BHvIp6aMmq2Kg8",
             authDomain: "lunch-wheel-3e5ae.firebaseapp.com",
@@ -31,33 +35,45 @@
         const db = getFirestore(app);
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
-        let menus = [];
+        const colors = ['#ff7675', '#74b9ff', '#55efc4', '#ffeaa7', '#a29bfe', '#fd79a8', '#fab1a0', '#00cec9'];
 
         window.addMenu = async () => {
             const input = document.getElementById('menuInput');
-            if (input.value) {
-                await addDoc(collection(db, "menus"), { name: input.value });
-                input.value = '';
-            }
+            if (!input.value) return;
+            await addDoc(collection(db, "menus"), { name: input.value });
+            input.value = '';
         };
 
         onSnapshot(collection(db, "menus"), (snapshot) => {
-            menus = snapshot.docs.map(doc => doc.data().name);
-            draw();
+            const counts = {};
+            snapshot.forEach(doc => {
+                const name = doc.data().name;
+                counts[name] = (counts[name] || 0) + 1;
+            });
+            
+            // 데이터를 [{name: '라면', count: 3}, ...] 형태로 변환
+            const menuData = Object.keys(counts).map(name => ({ name, count: counts[name] }));
+            draw(menuData);
         });
 
-        function draw() {
+        function draw(menuData) {
+            const total = menuData.reduce((sum, item) => sum + item.count, 0);
             ctx.clearRect(0, 0, 300, 300);
-            menus.forEach((m, i) => {
-                let angle = (2 * Math.PI / menus.length) * i;
+            let startAngle = 0;
+
+            menuData.forEach((item, i) => {
+                const sliceAngle = (item.count / total) * 2 * Math.PI;
                 ctx.beginPath();
                 ctx.moveTo(150, 150);
-                ctx.arc(150, 150, 150, angle, angle + (2 * Math.PI / menus.length));
-                ctx.fillStyle = i % 2 ? '#ff9999' : '#99ff99';
+                ctx.arc(150, 150, 140, startAngle, startAngle + sliceAngle);
+                ctx.fillStyle = colors[i % colors.length]; // 색상 배열 사용으로 해결
                 ctx.fill();
                 ctx.stroke();
+                
+                // 텍스트 위치 계산
                 ctx.fillStyle = '#000';
-                ctx.fillText(m, 150 + Math.cos(angle + 0.2) * 80, 150 + Math.sin(angle + 0.2) * 80);
+                ctx.fillText(item.name, 150 + Math.cos(startAngle + sliceAngle/2) * 80, 150 + Math.sin(startAngle + sliceAngle/2) * 80);
+                startAngle += sliceAngle;
             });
         }
     </script>
