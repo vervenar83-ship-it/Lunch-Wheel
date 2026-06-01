@@ -6,22 +6,24 @@
     <style>
         body { font-family: sans-serif; text-align: center; padding: 20px; }
         #canvas { margin-top: 20px; border: 2px solid #333; border-radius: 50%; }
-        /* 메뉴 목록 스타일 */
-        .menu-item { display: inline-block; margin: 5px; padding: 5px 10px; background: #eee; border-radius: 15px; }
+        .btn-group { margin: 20px 0; }
+        button { padding: 10px 15px; margin: 0 5px; cursor: pointer; }
     </style>
 </head>
 <body>
     <h1>실시간 점심 룰렛</h1>
+    <div class="btn-group">
+        <button onclick="createNewRoom()">새 룰렛 생성</button>
+        <button onclick="copyLink()">공유하기(링크 복사)</button>
+    </div>
     <input type="text" id="menuInput" placeholder="메뉴 입력">
     <button onclick="addMenu()">추가</button>
     <br><canvas id="canvas" width="300" height="300"></canvas>
-    <div id="menuList"></div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import { getFirestore, collection, onSnapshot, addDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-        // Firebase 설정 (본인의 키 사용)
         const firebaseConfig = {
             apiKey: "AIzaSyBCZ1mXpEhfw2Wovpck6BHvIp6aMmq2Kg8",
             authDomain: "lunch-wheel-3e5ae.firebaseapp.com",
@@ -33,31 +35,43 @@
 
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
-        const canvas = document.getElementById('canvas');
-        const ctx = canvas.getContext('2d');
-        const colors = ['#FF5733', '#33FF57', '#3357FF', '#F333FF', '#FF33A8', 
-    '#33FFF3', '#F3FF33', '#FF8C33', '#8C33FF', '#33FF8C'];
+        
+        // URL에서 방 ID 추출
+        const urlParams = new URLSearchParams(window.location.search);
+        const roomId = urlParams.get('room') || 'default';
+        const dbRef = collection(db, "rooms", roomId, "menus");
+
+        window.createNewRoom = () => {
+            const newRoomId = Math.random().toString(36).substr(2, 9);
+            window.location.href = `?room=${newRoomId}`;
+        };
+
+        window.copyLink = () => {
+            navigator.clipboard.writeText(window.location.href);
+            alert("링크가 복사되었습니다!");
+        };
 
         window.addMenu = async () => {
             const input = document.getElementById('menuInput');
             if (!input.value) return;
-            await addDoc(collection(db, "menus"), { name: input.value });
+            await addDoc(dbRef, { name: input.value });
             input.value = '';
         };
 
-        onSnapshot(collection(db, "menus"), (snapshot) => {
+        onSnapshot(dbRef, (snapshot) => {
             const counts = {};
             snapshot.forEach(doc => {
                 const name = doc.data().name;
                 counts[name] = (counts[name] || 0) + 1;
             });
-            
-            // 데이터를 [{name: '라면', count: 3}, ...] 형태로 변환
             const menuData = Object.keys(counts).map(name => ({ name, count: counts[name] }));
             draw(menuData);
         });
 
         function draw(menuData) {
+            const canvas = document.getElementById('canvas');
+            const ctx = canvas.getContext('2d');
+            const colors = ['#FF5733', '#33FF57', '#3357FF', '#F333FF', '#FF33A8', '#33FFF3', '#F3FF33', '#FF8C33', '#8C33FF', '#33FF8C'];
             const total = menuData.reduce((sum, item) => sum + item.count, 0);
             ctx.clearRect(0, 0, 300, 300);
             let startAngle = 0;
@@ -67,11 +81,9 @@
                 ctx.beginPath();
                 ctx.moveTo(150, 150);
                 ctx.arc(150, 150, 140, startAngle, startAngle + sliceAngle);
-                ctx.fillStyle = colors[i % colors.length]; // 색상 배열 사용으로 해결
+                ctx.fillStyle = colors[i % colors.length];
                 ctx.fill();
                 ctx.stroke();
-                
-                // 텍스트 위치 계산
                 ctx.fillStyle = '#000';
                 ctx.fillText(item.name, 150 + Math.cos(startAngle + sliceAngle/2) * 80, 150 + Math.sin(startAngle + sliceAngle/2) * 80);
                 startAngle += sliceAngle;
