@@ -10,11 +10,11 @@
 </head>
 <body>
     <h1>점심 룰렛</h1>
-    <button id="newRoomBtn">새 룰렛 생성</button>
-    <button id="copyBtn">공유하기</button>
+    <button onclick="createNewRoom()">새 룰렛 생성</button>
+    <button onclick="copyLink()">공유하기</button>
     <br><br>
     <input type="text" id="menuInput" placeholder="메뉴 입력">
-    <button id="addBtn">추가</button>
+    <button onclick="addMenu()">추가</button>
     <br><canvas id="canvas" width="300" height="300"></canvas>
 
     <script type="module">
@@ -38,21 +38,17 @@
         const ctx = canvas.getContext('2d');
         const colors = ['#FF5733', '#33FF57', '#3357FF', '#F333FF', '#FF33A8'];
 
-        async function addMenu() {
+        // 함수를 window에 직접 할당하여 HTML에서 호출 가능하게 만듭니다.
+        window.addMenu = async () => {
             const input = document.getElementById('menuInput');
             const name = input.value.trim();
             if (!name) return;
             await addDoc(dbRef, { name: name });
             input.value = '';
-        }
+        };
 
-        function createNewRoom() { window.location.href = `?room=${Math.random().toString(36).substr(2, 9)}`; }
-        function copyLink() { navigator.clipboard.writeText(window.location.href); alert("링크 복사 완료!"); }
-
-        // 이벤트 연결
-        document.getElementById('addBtn').addEventListener('click', addMenu);
-        document.getElementById('newRoomBtn').addEventListener('click', createNewRoom);
-        document.getElementById('copyBtn').addEventListener('click', copyLink);
+        window.createNewRoom = () => { window.location.href = `?room=${Math.random().toString(36).substr(2, 9)}`; };
+        window.copyLink = () => { navigator.clipboard.writeText(window.location.href); alert("링크 복사 완료!"); };
 
         onSnapshot(dbRef, (snapshot) => {
             const menuData = [];
