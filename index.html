@@ -52,55 +52,45 @@
 
         let cachedDict = {};
 
-        // 1. 사전 데이터 로드 (앱 실행 시 한 번만)
         async function loadData() {
             const dictSnapshot = await getDoc(doc(db, "synonyms", "dictionary"));
             if (dictSnapshot.exists()) {
                 cachedDict = dictSnapshot.data();
-                console.log("사전 로드 완료:", cachedDict);
             }
-            
             const list = document.getElementById('shortcutList');
             Object.keys(cachedDict).forEach(key => {
                 const btn = document.createElement('button');
                 btn.className = 'shortcut-btn';
                 btn.innerText = key;
-                btn.onclick = () => addMenu(key);
+                btn.onclick = () => window.addMenu(key);
                 list.appendChild(btn);
             });
         }
         loadData();
 
-        // 2. 메뉴 추가 로직 (정확히 일치할 때만 통합)
         window.addMenu = async (presetName = null) => {
             const input = document.getElementById('menuInput');
             let inputName = presetName || input.value.trim();
             if (!inputName) return;
 
             let finalName = inputName;
-            
             for (const [representative, synonyms] of Object.entries(cachedDict)) {
-                // 대표 명칭과 정확히 일치하거나, 배열 내 동의어와 정확히 일치할 경우에만 변환
                 if (representative === inputName || (Array.isArray(synonyms) && synonyms.includes(inputName))) {
                     finalName = representative;
                     break;
                 }
             }
-            
             await addDoc(dbRef, { name: finalName });
-            input.value = '';
+            if (!presetName) input.value = '';
         };
 
         window.createNewRoom = () => { window.location.href = `?room=${Math.random().toString(36).substr(2, 9)}`; };
         window.copyLink = () => { navigator.clipboard.writeText(window.location.href); alert("링크가 복사되었습니다!"); };
 
-    // 3. 수정된 실시간 렌더링 (가져올 때도 사전 참조)
         onSnapshot(dbRef, (snapshot) => {
             const counts = {};
             snapshot.forEach(doc => { 
                 let name = doc.data().name; 
-                
-                // [핵심] DB에서 가져온 이름도 사전을 참조해 대표명칭으로 치환!
                 for (const [representative, synonyms] of Object.entries(cachedDict)) {
                     if (representative === name || (Array.isArray(synonyms) && synonyms.includes(name))) {
                         name = representative;
@@ -109,11 +99,26 @@
                 }
                 counts[name] = (counts[name] || 0) + 1; 
             });
-            
             const menuData = Object.keys(counts).map(name => ({ name, count: counts[name] }));
             draw(menuData);
         });
-        
+
+        function draw(menuData) {
+            const total = menuData.reduce((sum, item) => sum + item.count, 0);
+            ctx.clearRect(0, 0, 300, 300);
+            let startAngle = 0;
+            menuData.forEach((item, i) => {
+                const sliceAngle = (item.count / total) * 2 * Math.PI;
+                ctx.beginPath();
+                ctx.moveTo(150, 150);
+                ctx.arc(150, 150, 140, startAngle, startAngle + sliceAngle);
+                ctx.fillStyle = colors[i % colors.length];
+                ctx.fill(); ctx.stroke();
+                ctx.fillStyle = '#000';
+                ctx.fillText(item.name, 150 + Math.cos(startAngle + sliceAngle/2) * 80, 150 + Math.sin(startAngle + sliceAngle/2) * 80);
+                startAngle += sliceAngle;
+            });
+        }
     </script>
 </body>
 </html>
