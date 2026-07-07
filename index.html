@@ -2,35 +2,24 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>실시간 점심 룰렛</title>
+    <title>점심 룰렛</title>
     <style>
-        body { font-family: sans-serif; text-align: center; padding: 20px; display: flex; }
-        .main { flex: 3; }
-        .sidebar { flex: 1; border-left: 1px solid #ccc; padding-left: 20px; }
+        body { text-align: center; padding: 20px; font-family: sans-serif; }
         #canvas { margin-top: 20px; border: 2px solid #333; border-radius: 50%; }
-        .shortcut-btn { display: block; margin: 5px; width: 100%; cursor: pointer; padding: 8px; }
     </style>
 </head>
 <body>
-    <div class="main">
-        <h1>실시간 점심 룰렛</h1>
-        <div class="btn-group">
-            <button onclick="createNewRoom()">새 룰렛 생성</button>
-            <button onclick="copyLink()">공유하기</button>
-        </div>
-        <br><input type="text" id="menuInput" placeholder="메뉴 입력">
-        <button onclick="addMenu()">추가</button>
-        <br><canvas id="canvas" width="300" height="300"></canvas>
-    </div>
-
-    <div class="sidebar">
-        <h3>간편 선택</h3>
-        <div id="shortcutList"></div>
-    </div>
+    <h1>점심 룰렛</h1>
+    <button onclick="createNewRoom()">새 룰렛 생성</button>
+    <button onclick="copyLink()">공유하기</button>
+    <br><br>
+    <input type="text" id="menuInput" placeholder="메뉴 입력">
+    <button onclick="addMenu()">추가</button>
+    <br><canvas id="canvas" width="300" height="300"></canvas>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getFirestore, collection, onSnapshot, addDoc, getDoc, doc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getFirestore, collection, onSnapshot, addDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyBCZ1mXpEhfw2Wovpck6BHvIp6aMmq2Kg8",
@@ -43,92 +32,42 @@
 
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
-        
         const roomId = new URLSearchParams(window.location.search).get('room') || 'default';
         const dbRef = collection(db, "rooms", roomId, "menus");
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
-        const colors = ['#FF5733', '#33FF57', '#3357FF', '#F333FF', '#FF33A8', '#33FFF3', '#F3FF33', '#FF8C33', '#8C33FF', '#33FF8C'];
+        const colors = ['#FF5733', '#33FF57', '#3357FF', '#F333FF', '#FF33A8'];
 
-        let cachedDict = {};
-        let isReady = false; // 데이터 로딩 확인용 플래그
-
-        async function loadData() {
-            try {
-                const dictSnapshot = await getDoc(doc(db, "synonyms", "dictionary"));
-                if (dictSnapshot.exists()) {
-                    cachedDict = dictSnapshot.data();
-                }
-                isReady = true; // 로딩 완료
-                
-                const list = document.getElementById('shortcutList');
-                Object.keys(cachedDict).forEach(key => {
-                    const btn = document.createElement('button');
-                    btn.className = 'shortcut-btn';
-                    btn.innerText = key;
-                    btn.onclick = () => window.addMenu(key);
-                    list.appendChild(btn);
-                });
-            } catch (e) {
-                console.error("사전 로드 오류:", e);
-                isReady = true; // 에러가 나도 진행은 가능하게
-            }
-        }
-        loadData();
-
-        window.addMenu = async (presetName = null) => {
+        window.addMenu = async () => {
             const input = document.getElementById('menuInput');
-            let inputName = presetName || input.value.trim();
-            if (!inputName) return;
-
-            let finalName = inputName;
-            // 룰렛 합치기 로직
-            for (const [representative, synonyms] of Object.entries(cachedDict)) {
-                if (representative === inputName || (Array.isArray(synonyms) && synonyms.includes(inputName))) {
-                    finalName = representative;
-                    break;
-                }
-            }
-            
-            await addDoc(dbRef, { name: finalName });
-            if (!presetName) input.value = '';
+            const name = input.value.trim();
+            if (!name) return;
+            await addDoc(dbRef, { name: name });
+            input.value = '';
         };
 
         window.createNewRoom = () => { window.location.href = `?room=${Math.random().toString(36).substr(2, 9)}`; };
-        window.copyLink = () => { navigator.clipboard.writeText(window.location.href); alert("링크가 복사되었습니다!"); };
+        window.copyLink = () => { navigator.clipboard.writeText(window.location.href); alert("링크 복사 완료!"); };
 
         onSnapshot(dbRef, (snapshot) => {
-            const counts = {};
-            snapshot.forEach(doc => { 
-                let name = doc.data().name; 
-                // DB에서 가져올 때도 통합
-                for (const [rep, syns] of Object.entries(cachedDict)) {
-                    if (rep === name || (Array.isArray(syns) && syns.includes(name))) {
-                        name = rep;
-                        break;
-                    }
-                }
-                counts[name] = (counts[name] || 0) + 1; 
-            });
-            const menuData = Object.keys(counts).map(name => ({ name, count: counts[name] }));
+            const menuData = [];
+            snapshot.forEach(doc => menuData.push(doc.data().name));
             draw(menuData);
         });
 
-        function draw(menuData) {
-            const total = menuData.reduce((sum, item) => sum + item.count, 0);
+        function draw(menus) {
             ctx.clearRect(0, 0, 300, 300);
-            if (total === 0) return;
-            let startAngle = 0;
-            menuData.forEach((item, i) => {
-                const sliceAngle = (item.count / total) * 2 * Math.PI;
+            if (menus.length === 0) return;
+            const sliceAngle = (2 * Math.PI) / menus.length;
+            menus.forEach((name, i) => {
+                const startAngle = i * sliceAngle;
                 ctx.beginPath();
                 ctx.moveTo(150, 150);
                 ctx.arc(150, 150, 140, startAngle, startAngle + sliceAngle);
                 ctx.fillStyle = colors[i % colors.length];
                 ctx.fill(); ctx.stroke();
                 ctx.fillStyle = '#000';
-                ctx.fillText(item.name, 150 + Math.cos(startAngle + sliceAngle/2) * 80, 150 + Math.sin(startAngle + sliceAngle/2) * 80);
-                startAngle += sliceAngle;
+                ctx.fillText(name, 150 + Math.cos(startAngle + sliceAngle/2) * 80, 150 + Math.sin(startAngle + sliceAngle/2) * 80);
             });
         }
     </script>
