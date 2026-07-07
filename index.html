@@ -3,23 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <title>점심 룰렛</title>
-    <style>
-        body { text-align: center; padding: 20px; font-family: sans-serif; }
-        #canvas { margin-top: 20px; border: 2px solid #333; border-radius: 50%; }
-    </style>
 </head>
 <body>
     <h1>점심 룰렛</h1>
-    <button onclick="createNewRoom()">새 룰렛 생성</button>
-    <button onclick="copyLink()">공유하기</button>
-    <br><br>
+    <div id="status" style="color: red;">로딩 중...</div>
+    <br>
     <input type="text" id="menuInput" placeholder="메뉴 입력">
-    <button onclick="addMenu()">추가</button>
-    <br><canvas id="canvas" width="300" height="300"></canvas>
+    <button id="addBtn">추가</button>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getFirestore, collection, onSnapshot, addDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyBCZ1mXpEhfw2Wovpck6BHvIp6aMmq2Kg8",
@@ -32,45 +26,25 @@
 
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
-        const roomId = new URLSearchParams(window.location.search).get('room') || 'default';
-        const dbRef = collection(db, "rooms", roomId, "menus");
-        const canvas = document.getElementById('canvas');
-        const ctx = canvas.getContext('2d');
-        const colors = ['#FF5733', '#33FF57', '#3357FF', '#F333FF', '#FF33A8'];
+        const dbRef = collection(db, "rooms", "default", "menus");
 
-        // 함수를 window에 직접 할당하여 HTML에서 호출 가능하게 만듭니다.
-        window.addMenu = async () => {
+        // 로딩 완료 표시
+        document.getElementById('status').innerText = "준비 완료!";
+        document.getElementById('status').style.color = "green";
+
+        document.getElementById('addBtn').addEventListener('click', async () => {
             const input = document.getElementById('menuInput');
             const name = input.value.trim();
-            if (!name) return;
-            await addDoc(dbRef, { name: name });
-            input.value = '';
-        };
-
-        window.createNewRoom = () => { window.location.href = `?room=${Math.random().toString(36).substr(2, 9)}`; };
-        window.copyLink = () => { navigator.clipboard.writeText(window.location.href); alert("링크 복사 완료!"); };
-
-        onSnapshot(dbRef, (snapshot) => {
-            const menuData = [];
-            snapshot.forEach(doc => menuData.push(doc.data().name));
-            draw(menuData);
+            if (!name) return alert("입력값이 없습니다.");
+            
+            try {
+                await addDoc(dbRef, { name: name });
+                alert("추가 성공!");
+                input.value = '';
+            } catch (e) {
+                alert("에러 발생: " + e.message);
+            }
         });
-
-        function draw(menus) {
-            ctx.clearRect(0, 0, 300, 300);
-            if (menus.length === 0) return;
-            const sliceAngle = (2 * Math.PI) / menus.length;
-            menus.forEach((name, i) => {
-                const startAngle = i * sliceAngle;
-                ctx.beginPath();
-                ctx.moveTo(150, 150);
-                ctx.arc(150, 150, 140, startAngle, startAngle + sliceAngle);
-                ctx.fillStyle = colors[i % colors.length];
-                ctx.fill(); ctx.stroke();
-                ctx.fillStyle = '#000';
-                ctx.fillText(name, 150 + Math.cos(startAngle + sliceAngle/2) * 80, 150 + Math.sin(startAngle + sliceAngle/2) * 80);
-            });
-        }
     </script>
 </body>
 </html>
