@@ -51,20 +51,28 @@
         const colors = ['#FF5733', '#33FF57', '#3357FF', '#F333FF', '#FF33A8', '#33FFF3', '#F3FF33', '#FF8C33', '#8C33FF', '#33FF8C'];
 
         let cachedDict = {};
+        let isReady = false; // 데이터 로딩 확인용 플래그
 
         async function loadData() {
-            const dictSnapshot = await getDoc(doc(db, "synonyms", "dictionary"));
-            if (dictSnapshot.exists()) {
-                cachedDict = dictSnapshot.data();
+            try {
+                const dictSnapshot = await getDoc(doc(db, "synonyms", "dictionary"));
+                if (dictSnapshot.exists()) {
+                    cachedDict = dictSnapshot.data();
+                }
+                isReady = true; // 로딩 완료
+                
+                const list = document.getElementById('shortcutList');
+                Object.keys(cachedDict).forEach(key => {
+                    const btn = document.createElement('button');
+                    btn.className = 'shortcut-btn';
+                    btn.innerText = key;
+                    btn.onclick = () => window.addMenu(key);
+                    list.appendChild(btn);
+                });
+            } catch (e) {
+                console.error("사전 로드 오류:", e);
+                isReady = true; // 에러가 나도 진행은 가능하게
             }
-            const list = document.getElementById('shortcutList');
-            Object.keys(cachedDict).forEach(key => {
-                const btn = document.createElement('button');
-                btn.className = 'shortcut-btn';
-                btn.innerText = key;
-                btn.onclick = () => window.addMenu(key);
-                list.appendChild(btn);
-            });
         }
         loadData();
 
@@ -74,12 +82,14 @@
             if (!inputName) return;
 
             let finalName = inputName;
+            // 룰렛 합치기 로직
             for (const [representative, synonyms] of Object.entries(cachedDict)) {
                 if (representative === inputName || (Array.isArray(synonyms) && synonyms.includes(inputName))) {
                     finalName = representative;
                     break;
                 }
             }
+            
             await addDoc(dbRef, { name: finalName });
             if (!presetName) input.value = '';
         };
@@ -91,9 +101,10 @@
             const counts = {};
             snapshot.forEach(doc => { 
                 let name = doc.data().name; 
-                for (const [representative, synonyms] of Object.entries(cachedDict)) {
-                    if (representative === name || (Array.isArray(synonyms) && synonyms.includes(name))) {
-                        name = representative;
+                // DB에서 가져올 때도 통합
+                for (const [rep, syns] of Object.entries(cachedDict)) {
+                    if (rep === name || (Array.isArray(syns) && syns.includes(name))) {
+                        name = rep;
                         break;
                     }
                 }
@@ -106,6 +117,7 @@
         function draw(menuData) {
             const total = menuData.reduce((sum, item) => sum + item.count, 0);
             ctx.clearRect(0, 0, 300, 300);
+            if (total === 0) return;
             let startAngle = 0;
             menuData.forEach((item, i) => {
                 const sliceAngle = (item.count / total) * 2 * Math.PI;
