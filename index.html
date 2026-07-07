@@ -4,80 +4,18 @@
     <meta charset="UTF-8">
     <title>점심 룰렛</title>
     <style>
-        body { text-align: center; padding: 20px; font-family: sans-serif; }
-        #canvas { margin-top: 20px; border: 2px solid #333; border-radius: 50%; }
+        canvas { border: 1px solid #000; cursor: pointer; }
     </style>
 </head>
 <body>
-    <h1>점심 룰렛</h1>
-    <button id="newRoomBtn">새 룰렛 생성</button>
-    <button id="copyBtn">공유하기</button>
-    <br><br>
     <input type="text" id="menuInput" placeholder="메뉴 입력">
-    <button id="addBtn">추가</button>
-    <br><canvas id="canvas" width="300" height="300"></canvas>
+    <button onclick="addMenu()">추가</button>
+    <button onclick="resetRoulette()">새 룰렛 만들기</button>
+    <button onclick="shareLink()">공유하기</button>
+    <br>
+    <canvas id="roulette" width="400" height="400"></canvas>
+    <button onclick="spin()">룰렛 돌리기</button>
 
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getFirestore, collection, onSnapshot, addDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-
-        const firebaseConfig = {
-            apiKey: "AIzaSyBCZ1mXpEhfw2Wovpck6BHvIp6aMmq2Kg8",
-            authDomain: "lunch-wheel-3e5ae.firebaseapp.com",
-            projectId: "lunch-wheel-3e5ae",
-            storageBucket: "lunch-wheel-3e5ae.firebasestorage.app",
-            messagingSenderId: "2842226690",
-            appId: "1:2842226690:web:849445afa6f938d1fdf71b"
-        };
-
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
-        const roomId = new URLSearchParams(window.location.search).get('room') || 'default';
-        const dbRef = collection(db, "rooms", roomId, "menus");
-        const canvas = document.getElementById('canvas');
-        const ctx = canvas.getContext('2d');
-        const colors = ['#FF5733', '#33FF57', '#3357FF', '#F333FF', '#FF33A8'];
-
-        // 버튼 동작 정의
-        async function addMenu() {
-            const input = document.getElementById('menuInput');
-            const name = input.value.trim();
-            if (!name) return;
-            await addDoc(dbRef, { name: name });
-            input.value = '';
-        }
-
-        function createNewRoom() { window.location.href = `?room=${Math.random().toString(36).substr(2, 9)}`; }
-        function copyLink() { navigator.clipboard.writeText(window.location.href); alert("링크 복사 완료!"); }
-
-        // 이벤트 연결 (onclick 속성 제거 후 여기서 연결)
-        document.getElementById('addBtn').addEventListener('click', addMenu);
-        document.getElementById('newRoomBtn').addEventListener('click', createNewRoom);
-        document.getElementById('copyBtn').addEventListener('click', copyLink);
-
-        // 룰렛 그리기
-        function draw(menus) {
-            ctx.clearRect(0, 0, 300, 300);
-            if (menus.length === 0) return;
-            const sliceAngle = (2 * Math.PI) / menus.length;
-            menus.forEach((name, i) => {
-                const startAngle = i * sliceAngle;
-                ctx.beginPath();
-                ctx.moveTo(150, 150);
-                ctx.arc(150, 150, 140, startAngle, startAngle + sliceAngle);
-                ctx.fillStyle = colors[i % colors.length];
-                ctx.fill(); ctx.stroke();
-                ctx.fillStyle = '#000';
-                ctx.fillText(name, 150 + Math.cos(startAngle + sliceAngle/2) * 80, 150 + Math.sin(startAngle + sliceAngle/2) * 80);
-            });
-        }
-
-        // 실시간 업데이트
-        onSnapshot(dbRef, (snapshot) => {
-            const menuData = [];
-            snapshot.forEach(doc => menuData.push(doc.data().name));
-            draw(menuData);
-        });
-    </script>
+    <script src="app.js"></script>
 </body>
 </html>
